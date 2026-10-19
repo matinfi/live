@@ -4,8 +4,29 @@
 		<a class="chat-logo" href="<?php echo esc_url( home_url( '/' ) ); ?>"><span class="brand-mark" aria-hidden="true">م</span> ماتین <i>AI</i></a>
 		<button id="new-chat" class="new-chat" type="button"><span aria-hidden="true">＋</span> گفت‌وگوی جدید</button>
 		<label class="sidebar-search"><span class="sr-only">جست‌وجوی سریع</span><input id="sidebar-search" type="search" placeholder="جست‌وجوی سریع"></label>
-		<nav class="sidebar-section sidebar-nav" aria-label="کشف تجربه‌ها"><p>کشف تجربه‌ها</p><button class="starter" type="button" data-prompt="کافه‌های مناسب برای قرار را پیشنهاد بده">کشف کافه‌ها</button><button class="starter" type="button" data-prompt="امشب کجا موسیقی زنده دارد؟">موسیقی زنده</button><button class="starter" type="button" data-prompt="کدام کافه امشب بازی فوتبال را پخش می‌کند؟">پخش فوتبال</button><button class="starter" type="button" data-prompt="چه برنامه‌هایی این هفته برگزار می‌شوند؟">رویدادهای پیش‌رو</button></nav>
-		<p class="sidebar-note">ماتین فقط کافه‌ها و ایونت‌های ثبت‌شده در همین سایت را پیشنهاد می‌دهد.</p><nav class="sidebar-section sidebar-nav" aria-label="حساب کاربری"><p>حساب من</p><a class="starter account-link" href="<?php echo esc_url( home_url( '/my-account/' ) ); ?>">🎟 بلیت‌ها و رزروهای من</a><a class="starter account-link" href="<?php echo esc_url( wp_login_url( home_url( '/my-account/' ) ) ); ?>">⚙ ورود / تنظیمات حساب</a></nav><div class="sidebar-account"><span class="account-initial" aria-hidden="true">م</span><span><b>Matin AI</b><small>کشف و رزرو کافه</small></span></div>
+		<nav class="sidebar-section sidebar-nav" aria-label="کشف تجربه‌ها"><p>کشف تجربه‌ها</p><button class="starter" type="button" data-prompt="کافه‌های مناسب برای قرار را پیشنهاد بده">کشف کافه‌ها</button><button class="starter" type="button" data-prompt="امشب کجا موسیقی زنده دارد؟">موسیقی زنده</button><button class="starter" type="button" data-prompt="کدام کافه امشب بازی فوتبال را پخش می‌کند؟">پخش فوتبال</button><button class="starter" type="button" data-prompt="چه برنامه‌هایی این هفته برگزار می‌شوند؟">رویدادهای پیش‌رو</button><button class="starter" id="near-me" type="button">کافه‌های نزدیک من</button></nav>
+		<p class="sidebar-note">ماتین فقط کافه‌ها و ایونت‌های ثبت‌شده در همین سایت را پیشنهاد می‌دهد.</p>
+		<?php
+		$base = home_url( '/my-account/' );
+		if ( is_user_logged_in() ) :
+			$me   = wp_get_current_user();
+			$name = $me->display_name ?: $me->user_login;
+			?>
+		<nav class="sidebar-section sidebar-nav account-menu" aria-label="حساب کاربری"><p>حساب من</p>
+			<details class="user-menu">
+				<summary class="starter"><span class="account-initial" aria-hidden="true"><?php echo esc_html( mb_substr( $name, 0, 1, 'UTF-8' ) ); ?></span><span><?php echo esc_html( $name ); ?></span></summary>
+				<a class="starter account-link" href="<?php echo esc_url( add_query_arg( [ 'matin_tab' => 'reservations', 'status' => 'pending' ], $base ) ); ?>">⏳ در انتظار تأیید</a>
+				<a class="starter account-link" href="<?php echo esc_url( add_query_arg( [ 'matin_tab' => 'reservations', 'status' => 'confirmed' ], $base ) ); ?>">✅ تأییدشده</a>
+				<a class="starter account-link" href="<?php echo esc_url( add_query_arg( [ 'matin_tab' => 'reservations', 'status' => 'cancelled' ], $base ) ); ?>">🚫 لغوشده</a>
+				<a class="starter account-link" href="<?php echo esc_url( add_query_arg( [ 'matin_tab' => 'reservations', 'status' => 'all' ], $base ) ); ?>">🎟 همه بلیت‌ها</a>
+				<a class="starter account-link" href="<?php echo esc_url( add_query_arg( 'matin_tab', 'settings', $base ) ); ?>">⚙ تنظیمات حساب</a>
+				<a class="starter account-link" href="<?php echo esc_url( wp_logout_url( home_url( '/' ) ) ); ?>">↩ خروج</a>
+			</details>
+		</nav>
+		<?php else : ?>
+		<nav class="sidebar-section sidebar-nav" aria-label="حساب کاربری"><p>حساب من</p><a class="starter account-link" href="<?php echo esc_url( $base ); ?>">🎟 ورود / ساخت حساب</a></nav>
+		<?php endif; ?>
+		<div class="sidebar-account"><span class="account-initial" aria-hidden="true">م</span><span><b>Matin AI</b><small>کشف و رزرو کافه</small></span></div>
 	</aside>
 	<section class="chat-main">
 		<header class="chat-topbar"><div><p class="status-dot">راهنمای رزرو</p><h1 id="chat-title">گفت‌وگوی جدید</h1></div><div class="top-actions"><button id="new-chat-top" class="top-new-chat" type="button">گفت‌وگوی جدید</button><button id="mobile-menu" class="icon-button" type="button" aria-label="باز کردن منو" aria-expanded="false">☰</button></div></header>
