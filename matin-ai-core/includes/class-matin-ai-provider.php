@@ -15,6 +15,7 @@ final class Matin_AI_Provider {
 		$result = match ( $provider ) {
 			'gemini'     => self::gemini( $instruction ),
 			'openai'     => self::openai( $instruction ),
+			'openrouter' => self::openrouter( $instruction ),
 			'compatible' => self::compatible( $instruction ),
 			default      => new WP_Error( 'matin_provider_off', __( 'ارائه‌دهندهٔ هوش مصنوعی پیکربندی نشده است.', 'matin-ai' ) ),
 		};
@@ -38,6 +39,7 @@ final class Matin_AI_Provider {
 		$result = match ( $provider ) {
 			'gemini'     => self::gemini( 'فقط کلمه «آماده» را پاسخ بده.' ),
 			'openai'     => self::openai( 'فقط کلمه «آماده» را پاسخ بده.' ),
+			'openrouter' => self::openrouter( 'فقط کلمه «آماده» را پاسخ بده.' ),
 			'compatible' => self::compatible( 'فقط کلمه «آماده» را پاسخ بده.' ),
 			default      => new WP_Error( 'matin_provider_off', 'ارائه‌دهنده انتخاب نشده است.' ),
 		};
@@ -51,7 +53,7 @@ final class Matin_AI_Provider {
 		if ( defined( $name ) ) { return (string) constant( $name ); }
 		$value = getenv( $name ); if ( false !== $value && '' !== (string) $value ) { return (string) $value; }
 		$options = class_exists( 'Matin_AI_Admin' ) ? Matin_AI_Admin::get_options() : [];
-		$map = [ 'MATIN_AI_PROVIDER' => 'ai_provider', 'MATIN_GEMINI_MODEL' => 'ai_model', 'MATIN_OPENAI_MODEL' => 'ai_model', 'MATIN_COMPATIBLE_MODEL' => 'ai_model', 'MATIN_COMPATIBLE_BASE_URL' => 'compatible_base_url' ];
+		$map = [ 'MATIN_AI_PROVIDER' => 'ai_provider', 'MATIN_GEMINI_MODEL' => 'ai_model', 'MATIN_OPENAI_MODEL' => 'ai_model', 'MATIN_COMPATIBLE_MODEL' => 'ai_model', 'MATIN_OPENROUTER_MODEL' => 'ai_model', 'MATIN_COMPATIBLE_BASE_URL' => 'compatible_base_url' ];
 		if ( isset( $map[ $name ], $options[ $map[ $name ] ] ) && '' !== (string) $options[ $map[ $name ] ] ) { return (string) $options[ $map[ $name ] ]; }
 		return $default;
 	}
@@ -108,6 +110,16 @@ final class Matin_AI_Provider {
 		if ( ! empty( $body['incomplete_details']['reason'] ) ) { return new WP_Error( 'matin_ai_truncated', __( 'پاسخ هوش مصنوعی کامل تولید نشد. لطفاً دوباره تلاش کنید.', 'matin-ai' ) ); }
 		$texts = []; foreach ( (array) ( $body['output'] ?? [] ) as $output ) { foreach ( (array) ( $output['content'] ?? [] ) as $content ) { if ( isset( $content['text'] ) && is_string( $content['text'] ) ) { $texts[] = $content['text']; } } }
 		return self::clean( implode( "\n", $texts ), 'OpenAI' );
+	}
+
+	/** OpenRouter exposes an OpenAI-compatible chat API; free models carry the ":free" suffix. */
+	private static function openrouter( string $instruction ) : string|WP_Error {
+		$key   = self::key( 'MATIN_OPENROUTER_API_KEY' ); if ( '' === $key ) { return self::failure( 'matin_key', __( 'اتصال OpenRouter پیکربندی نشده است.', 'matin-ai' ), 'کلید OpenRouter در تنظیمات ذخیره نشده است.' ); }
+		$model = self::config( 'MATIN_OPENROUTER_MODEL' ); if ( '' === $model ) { return self::failure( 'matin_key', __( 'مدل OpenRouter در تنظیمات مشخص نشده است.', 'matin-ai' ), 'نام مدل OpenRouter در تنظیمات خالی است.' ); }
+		$response = wp_remote_post( 'https://openrouter.ai/api/v1/chat/completions', [ 'timeout' => 35, 'headers' => [ 'Content-Type' => 'application/json', 'Authorization' => 'Bearer ' . $key, 'HTTP-Referer' => home_url( '/' ), 'X-Title' => 'Matin AI' ], 'body' => wp_json_encode( [ 'model' => $model, 'messages' => [ [ 'role' => 'user', 'content' => $instruction ] ], 'temperature' => 0.2, 'max_tokens' => 700 ] ) ] );
+		if ( is_wp_error( $response ) || 200 !== wp_remote_retrieve_response_code( $response ) ) { return self::http_failure( 'OpenRouter', $response, __( 'OpenRouter موقتاً در دسترس نیست.', 'matin-ai' ) ); }
+		$body = json_decode( wp_remote_retrieve_body( $response ), true );
+		return self::clean( $body['choices'][0]['message']['content'] ?? '', 'OpenRouter' );
 	}
 
 	private static function compatible( string $instruction ) : string|WP_Error {

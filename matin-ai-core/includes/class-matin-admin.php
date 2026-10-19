@@ -37,7 +37,7 @@ final class Matin_AI_Admin {
 		$out['cafe_fee_amount'] = max( 0, min( 100000000, absint( $input['cafe_fee_amount'] ?? 0 ) ) );
 		$out['whatsapp_number'] = preg_replace( '/[^0-9]/', '', (string) ( $input['whatsapp_number'] ?? '' ) );
 		$out['whatsapp_phone_id'] = preg_replace( '/[^0-9]/', '', (string) ( $input['whatsapp_phone_id'] ?? '' ) );
-		$out['ai_provider'] = in_array( $input['ai_provider'] ?? '', [ 'gemini', 'openai', 'compatible' ], true ) ? $input['ai_provider'] : 'gemini';
+		$out['ai_provider'] = in_array( $input['ai_provider'] ?? '', [ 'gemini', 'openai', 'openrouter', 'compatible' ], true ) ? $input['ai_provider'] : 'gemini';
 		$out['ai_model'] = sanitize_text_field( $input['ai_model'] ?? '' );
 		$out['compatible_base_url'] = esc_url_raw( $input['compatible_base_url'] ?? '' );
 		$out['google_client_id'] = sanitize_text_field( $input['google_client_id'] ?? '' );
@@ -117,8 +117,8 @@ final class Matin_AI_Admin {
 		self::field( 'cafe_fee_amount', 'مبلغ هزینه کافه (لیر)', $o, 'number' ); echo '<p class="matin-admin-hint">درگاه پرداخت در این نسخه وجود ندارد؛ این تنظیمات برای محاسبه و گزارش‌گیری هستند، نه دریافت خودکار پول.</p></section>';
 
 		echo '<section class="matin-admin-card"><h2>دستیار هوشمند</h2>'; self::toggle( 'ai_enabled', 'فعال بودن دستیار AI', $o );
-		echo '<div class="matin-admin-field"><label for="matin-ai_provider">ارائه‌دهنده</label><select id="matin-ai_provider" name="matin_ai_options[ai_provider]"><option value="gemini" ' . selected( $o['ai_provider'], 'gemini', false ) . '>Google Gemini</option><option value="openai" ' . selected( $o['ai_provider'], 'openai', false ) . '>OpenAI</option><option value="compatible" ' . selected( $o['ai_provider'], 'compatible', false ) . '>سازگار با API</option></select></div>';
-		self::field( 'ai_model', 'نام مدل', $o ); self::field( 'compatible_base_url', 'آدرس پایه API سازگار', $o, 'url' );
+		echo '<div class="matin-admin-field"><label for="matin-ai_provider">ارائه‌دهنده</label><select id="matin-ai_provider" name="matin_ai_options[ai_provider]"><option value="gemini" ' . selected( $o['ai_provider'], 'gemini', false ) . '>Google Gemini</option><option value="openai" ' . selected( $o['ai_provider'], 'openai', false ) . '>OpenAI</option><option value="openrouter" ' . selected( $o['ai_provider'], 'openrouter', false ) . '>OpenRouter (مدل‌های رایگان و پولی)</option><option value="compatible" ' . selected( $o['ai_provider'], 'compatible', false ) . '>سازگار با API</option></select></div>';
+		self::field( 'ai_model', 'نام مدل', $o, 'text', 'برای OpenRouter، شناسه مدل را از openrouter.ai/models وارد کنید؛ مدل‌های رایگان به پسوند :free ختم می‌شوند. مثال: vendor/model:free' ); self::field( 'compatible_base_url', 'آدرس پایه API سازگار', $o, 'url' );
 		self::secret_field( 'ai_api_key', 'کلید API هوش مصنوعی', $o, 'برای تغییر وارد کنید؛ خالی بگذارید تا کلید فعلی حفظ شود. کلید هرگز نمایش داده نمی‌شود.' );
 		echo '</section>';
 
