@@ -12,6 +12,7 @@ final class Matin_AI_Admin {
 		add_action( 'admin_post_matin_ai_message_action', [ __CLASS__, 'handle_message_action' ] );
 		add_action( 'admin_post_matin_ai_prune_logs', [ __CLASS__, 'handle_prune_logs' ] );
 		add_action( 'admin_post_matin_ai_verify_ticket', [ __CLASS__, 'handle_verify_ticket' ] );
+		add_action( 'admin_post_matin_ai_test_connection', [ __CLASS__, 'handle_test_connection' ] );
 	}
 
 	public static function menu() : void {
@@ -81,11 +82,32 @@ final class Matin_AI_Admin {
 		printf( '<div class="matin-admin-field"><label for="matin-%1$s">%2$s</label><input id="matin-%1$s" type="password" name="matin_ai_options[%1$s]" value="" autocomplete="new-password"><p class="matin-admin-hint">%3$s</p></div>', esc_attr( $key ), esc_html( $label ), esc_html( ( $stored ? 'مقدار ذخیره‌شده است (رمزنگاری‌شده). ' : 'هنوز ذخیره نشده است. ' ) . $hint ) );
 	}
 
+	/** Shows the result of the last connection test, then forgets it. */
+	private static function connection_panel() : void {
+		$result = get_transient( 'matin_ai_test_' . get_current_user_id() );
+		if ( is_array( $result ) ) { delete_transient( 'matin_ai_test_' . get_current_user_id() ); }
+		$class = is_array( $result ) && ! empty( $result['ok'] ) ? 'matin-admin-ok' : 'matin-admin-missing';
+		echo '<section class="matin-admin-card" style="margin-bottom:16px"><h2>اتصال به هوش مصنوعی</h2><p class="matin-admin-hint">اول کلید را ذخیره کنید، سپس این دکمه را بزنید. نتیجه دقیق سرویس نمایش داده می‌شود.</p>';
+		echo '<form method="post" action="' . esc_url( admin_url( 'admin-post.php' ) ) . '">' . wp_nonce_field( 'matin_ai_test_connection', '_wpnonce', true, false ) . '<input type="hidden" name="action" value="matin_ai_test_connection"><button class="button button-secondary" type="submit">تست اتصال</button></form>';
+		if ( is_array( $result ) ) { echo '<p class="' . $class . '" style="margin-top:12px">' . esc_html( (string) $result['message'] ) . '</p>'; }
+		echo '</section>';
+	}
+
+	public static function handle_test_connection() : void {
+		if ( ! current_user_can( 'manage_options' ) ) { wp_die( esc_html__( 'دسترسی مجاز نیست.', 'matin-ai' ), '', [ 'response' => 403 ] ); }
+		check_admin_referer( 'matin_ai_test_connection' );
+		$result = Matin_AI_Provider::test();
+		set_transient( 'matin_ai_test_' . get_current_user_id(), $result, MINUTE_IN_SECONDS * 5 );
+		wp_safe_redirect( admin_url( 'admin.php?page=matin-ai-settings' ) );
+		exit;
+	}
+
 	public static function page() : void {
 		if ( ! current_user_can( 'manage_options' ) ) { return; }
 		$o = self::get_options();
 		echo '<div class="wrap matin-admin"><div class="matin-admin-hero"><h1>Matin AI | مرکز مدیریت</h1><p>تنظیمات هوش مصنوعی، پیام‌های واتساپ، ورود کاربران، بلیت‌ها و درآمد در یک پنل.</p></div>';
 		self::readiness( $o );
+		self::connection_panel();
 		echo '<form method="post" action="options.php">';
 		settings_fields( 'matin_ai_settings' );
 		echo '<div class="matin-admin-grid"><section class="matin-admin-card"><h2>مدل درآمد</h2>';
