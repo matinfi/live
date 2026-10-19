@@ -9,6 +9,7 @@ add_action( 'wp_enqueue_scripts', static function () : void {
 	wp_enqueue_style( 'matin-ai', get_theme_file_uri( 'assets/app.css' ), [], $version );
 	wp_enqueue_style( 'matin-ai-reservation-chat', get_theme_file_uri( 'assets/reservation-chat.css' ), [ 'matin-ai' ], $version );
 	wp_enqueue_style( 'matin-ai-workspace', get_theme_file_uri( 'assets/workspace.css' ), [ 'matin-ai-reservation-chat' ], $version );
+	wp_enqueue_style( 'matin-ai-account', get_theme_file_uri( 'assets/account.css' ), [ 'matin-ai-workspace' ], $version );
 	wp_enqueue_script( 'matin-ai', get_theme_file_uri( 'assets/app.js' ), [], $version, true );
 	wp_localize_script( 'matin-ai', 'matinAI', [ 'root' => esc_url_raw( rest_url( 'matin-ai/v1/' ) ), 'nonce' => wp_create_nonce( 'wp_rest' ), 'strings' => [ 'loading' => __( 'در حال جست‌وجو…', 'matin-ai' ), 'error' => __( 'اتصال برقرار نشد. دوباره تلاش کنید.', 'matin-ai' ) ] ] );
 } );

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Matin AI Core
  * Description: Cafe, event, discovery, AI assistant, reservations, cancellation, tickets and WhatsApp notifications for Matin AI.
- * Version: 1.4.0
+ * Version: 1.4.1
  * Requires at least: 6.4
  * Requires PHP: 8.0
  * Text Domain: matin-ai
@@ -10,7 +10,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'MATIN_AI_CORE_VERSION', '1.4.0' );
+define( 'MATIN_AI_CORE_VERSION', '1.4.1' );
 define( 'MATIN_AI_CORE_DB_VERSION', '3' );
 define( 'MATIN_AI_CORE_DIR', plugin_dir_path( __FILE__ ) );
 
