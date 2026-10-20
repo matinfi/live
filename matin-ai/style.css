@@ -3,15 +3,44 @@ Theme Name: Matin AI
 Theme URI: https://github.com/matinfi/matin
 Author: Matin
 Description: Persian RTL public interface for Matin AI cafe discovery.
-Version: 1.4.3
+Version: 1.6.0
 Text Domain: matin-ai
 Requires at least: 6.4
 Requires PHP: 8.0
 */
 
-/* Account menu in the sidebar (v1.4.0) */
-.user-menu summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:.5rem}
-.user-menu summary::-webkit-details-marker{display:none}
-.user-menu[open] summary{background:rgba(255,255,255,.09)}
-.user-menu a.account-link{font-size:.85rem}
 
+/* Catalog and detail views */
+.matin-catalog,.matin-detail{max-width:1180px;margin:0 auto;padding:clamp(20px,5vw,56px) clamp(16px,3vw,32px);min-height:100vh}.matin-catalog-head{padding:clamp(24px,5vw,48px);border-radius:26px;background:linear-gradient(135deg,#172019,#344a31);color:#f6f7f1;margin-bottom:28px}.matin-catalog-head h1{font-size:clamp(2rem,5vw,3.6rem);line-height:1.2;margin:.45rem 0}.matin-catalog-head>p:not(.matin-kicker){color:#d8e1d2;max-width:650px}.matin-kicker{font-size:.72rem;letter-spacing:.12em;color:#8caf7a;font-weight:900}.matin-back{display:inline-flex;color:inherit;text-decoration:none;font-weight:750;margin-bottom:20px}.matin-catalog-head .matin-back{color:#f6f7f1}.matin-catalog-filter{display:flex;gap:12px;align-items:end;max-width:720px;margin-top:24px}.matin-catalog-filter label{display:grid;gap:6px;flex:1;font-size:.84rem}.matin-catalog-filter input{width:100%;min-height:46px;padding:10px 14px;border:1px solid #cbd3c6;border-radius:12px}.matin-catalog-filter button,.matin-catalog-cta{display:inline-flex;justify-content:center;align-items:center;gap:10px;min-height:44px;border:0;border-radius:12px;padding:10px 18px;background:#d7e7c5;color:#1c2a1c;text-decoration:none;font-weight:850;cursor:pointer}.matin-catalog-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.matin-catalog-card,.matin-detail-panel{overflow:hidden;border:1px solid #e0e4dc;border-radius:22px;background:#fff;box-shadow:0 12px 35px rgba(26,37,25,.055)}.matin-catalog-image{height:190px;display:grid;place-items:center;background:#253b27;color:#d7e7c5;font-weight:900;text-decoration:none;overflow:hidden}.matin-catalog-image img{width:100%;height:100%;object-fit:cover}.matin-catalog-card-body{padding:20px}.matin-catalog-card h2{font-size:1.18rem;line-height:1.5;margin:.4rem 0}.matin-catalog-card h2 a{color:inherit;text-decoration:none}.matin-catalog-card-body>p{color:#656d62;font-size:.9rem}.matin-catalog-meta{font-size:.74rem!important;color:#4c7044!important;font-weight:850}.matin-catalog-card dl,.matin-detail-facts{display:grid;grid-template-columns:130px minmax(0,1fr);gap:8px 12px;font-size:.85rem;margin:18px 0}.matin-catalog-card dt,.matin-detail-facts dt{color:#6b7369}.matin-catalog-card dd,.matin-detail-facts dd{margin:0;font-weight:650;overflow-wrap:anywhere}.matin-catalog-cta{width:100%;margin-top:8px;background:#314a2d;color:#fff}.matin-catalog-empty{grid-column:1/-1;padding:36px;border:1px dashed #c8d0c3;border-radius:18px;text-align:center}.matin-pagination{margin-top:28px}.matin-detail-panel{padding:clamp(20px,5vw,48px)}.matin-detail-panel h1{font-size:clamp(2rem,5vw,3.4rem);line-height:1.2;margin:.4rem 0 1.2rem}.matin-detail-image{margin:-48px -48px 32px;max-height:420px;overflow:hidden}.matin-detail-image img{width:100%;max-height:420px;object-fit:cover;display:block}.matin-detail-copy{line-height:1.95}.matin-detail-facts{grid-template-columns:180px minmax(0,1fr);padding:20px;border-radius:16px;background:#f5f7f2}.matin-detail-facts a{color:#2d5b2a}.matin-detail-note{color:#6a7168;font-size:.85rem}.matin-cafe-events{display:grid;gap:8px;margin-bottom:22px}.matin-cafe-event{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:14px;border:1px solid #e0e4dc;border-radius:12px;color:inherit;text-decoration:none}.matin-cafe-event span{color:#65715f;font-size:.85rem}@media(max-width:850px){.matin-catalog-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:580px){.matin-catalog-grid{grid-template-columns:1fr}.matin-catalog-filter{align-items:stretch;flex-direction:column}.matin-detail-image{margin:-20px -20px 24px}.matin-detail-facts{grid-template-columns:1fr;gap:4px}.matin-detail-facts dd{margin-bottom:12px}.matin-catalog-card dl{grid-template-columns:90px minmax(0,1fr)}}
+
+/* Archive refinements: high-contrast, card-first responsive event discovery. */
+.matin-events-page{background:#f5f6f3;color:#20251f;border-radius:0;max-width:none;padding-top:clamp(20px,4vw,44px)}
+.matin-events-page>.matin-catalog-head,.matin-events-page>.matin-catalog-grid,.matin-events-page>.matin-pagination{max-width:1180px;margin-inline:auto}
+.matin-events-page>.matin-catalog-head{background:radial-gradient(circle at 85% 5%,rgba(164,196,137,.22),transparent 32%),linear-gradient(135deg,#141d18,#2e4531 68%,#435a3b);box-shadow:0 24px 60px rgba(24,40,27,.16)}
+.matin-events-page .matin-catalog-filter{display:grid;grid-template-columns:minmax(0,2fr) minmax(150px,1fr) minmax(150px,1fr) auto;align-items:end;max-width:none;padding:14px;border:1px solid rgba(255,255,255,.16);border-radius:18px;background:rgba(255,255,255,.08);backdrop-filter:blur(12px)}
+.matin-events-page .matin-catalog-filter input,.matin-events-page .matin-catalog-filter select{width:100%;min-height:48px;padding:10px 12px;border:1px solid #dce2d8;border-radius:12px;background:#fff;color:#20251f}
+.matin-events-page .matin-catalog-filter button{min-height:48px;white-space:nowrap;background:#d6e8c5;color:#20351f;box-shadow:0 4px 12px rgba(0,0,0,.1)}
+.matin-catalog-count{margin:14px 0 0!important;color:#d5e3ce!important;font-size:.82rem}
+.matin-events-page .matin-catalog-grid{padding:0;gap:20px}
+.matin-events-page .matin-catalog-card{border-color:#e0e5dc;box-shadow:0 12px 34px rgba(29,43,29,.07);transition:transform .2s ease,box-shadow .2s ease}
+.matin-events-page .matin-catalog-card:hover{transform:translateY(-3px);box-shadow:0 20px 42px rgba(29,43,29,.12)}
+.matin-events-page .matin-catalog-image{height:205px;background:linear-gradient(135deg,#1d2b20,#496542)}
+.matin-event-placeholder{display:grid;gap:7px;text-align:center;letter-spacing:.08em}.matin-event-placeholder small{letter-spacing:0;font-size:.8rem;color:#d7e7ca}
+.matin-events-page .matin-catalog-card h2{min-height:3.1em}
+.matin-events-page .matin-catalog-card dl{padding-top:14px;border-top:1px solid #edf0e9}
+.matin-events-page .matin-catalog-empty{background:#fff;border-color:#d4dccf;box-shadow:0 12px 30px rgba(29,43,29,.04)}
+.matin-events-page .matin-pagination .page-numbers{display:inline-flex;align-items:center;justify-content:center;min-width:40px;min-height:40px;margin:3px;padding:7px 12px;border:1px solid #dce2d8;border-radius:10px;background:#fff;color:#253a25;text-decoration:none}.matin-events-page .matin-pagination .current{background:#314a2d;color:#fff;border-color:#314a2d}
+@media(max-width:800px){.matin-events-page .matin-catalog-filter{grid-template-columns:1fr 1fr}.matin-events-page .matin-catalog-filter label:first-child{grid-column:1/-1}.matin-events-page .matin-catalog-filter button{grid-column:1/-1}}
+@media(max-width:560px){.matin-events-page{padding-inline:12px}.matin-events-page>.matin-catalog-head{padding:22px 18px;border-radius:20px}.matin-events-page .matin-catalog-filter{grid-template-columns:1fr;padding:10px}.matin-events-page .matin-catalog-filter label:first-child,.matin-events-page .matin-catalog-filter button{grid-column:auto}.matin-events-page .matin-catalog-image{height:180px}}
+@media(prefers-reduced-motion:reduce){.matin-events-page .matin-catalog-card{transition:none}}
+
+/* Matin AI 1.4.0: full-viewport layout and consistent responsive typography */
+html,body{width:100%;min-height:100%;margin:0}
+body{font-family:Vazirmatn,IRANSans,Tahoma,system-ui,sans-serif;font-size:16px;line-height:1.7;-webkit-font-smoothing:antialiased}
+#page,.site,.site-content,main{max-width:none}
+.chat-app{width:100%;max-width:none;min-height:100dvh}
+.chat-main,.conversation,.chat-content{min-width:0}
+button,.button,.matin-catalog-cta,input,select,textarea{font-family:inherit;font-size:inherit;line-height:1.45}
+button,.button,.matin-catalog-cta{min-height:44px}
+@media(max-width:760px){.chat-app{grid-template-columns:minmax(0,1fr)}.chat-sidebar{max-width:min(88vw,320px)}.chat-topbar{padding:12px 16px}.conversation{width:100%;padding-inline:14px}.matin-catalog,.matin-detail{width:100%;padding:16px 12px}.matin-catalog-head{padding:22px 18px;border-radius:18px}.matin-catalog-card-body{padding:16px}.matin-catalog-card h2{font-size:1.05rem}.matin-catalog-filter button{width:100%}}
+@media(min-width:761px){.chat-app{grid-template-columns:270px minmax(0,1fr)}.chat-main{width:100%}}

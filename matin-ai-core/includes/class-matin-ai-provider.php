@@ -1,137 +1,103 @@
 <?php
 defined( 'ABSPATH' ) || exit;
 
-/**
- * Server-side AI adapters. Keys come from constants or environment first, then from the admin
- * settings (stored encrypted). They are never sent to the browser and never written to logs.
- *
- * Visitors only ever see a generic message. The real reason (HTTP status, provider message,
- * transport error) is logged to the "ai" channel and shown to administrators by the connection test.
- */
+/** Server-side adapters. API keys are never sent to the browser; settings may be overridden by constants or environment variables. */
 final class Matin_AI_Provider {
 	public static function reply( string $instruction ) : string|WP_Error {
 		if ( class_exists( 'Matin_AI_Admin' ) && empty( Matin_AI_Admin::get_options()['ai_enabled'] ) ) { return new WP_Error( 'matin_provider_off', __( 'دستیار هوش مصنوعی در تنظیمات غیرفعال است.', 'matin-ai' ) ); }
 		$provider = strtolower( (string) self::config( 'MATIN_AI_PROVIDER', 'none' ) );
 		$result = match ( $provider ) {
-			'gemini'     => self::gemini( $instruction ),
-			'openai'     => self::openai( $instruction ),
+			'gemini' => self::gemini( $instruction ),
+			'openai' => self::openai( $instruction ),
 			'openrouter' => self::openrouter( $instruction ),
 			'compatible' => self::compatible( $instruction ),
-			default      => new WP_Error( 'matin_provider_off', __( 'ارائه‌دهندهٔ هوش مصنوعی پیکربندی نشده است.', 'matin-ai' ) ),
+			default => new WP_Error( 'matin_provider_off', __( 'ارائه‌دهندهٔ هوش مصنوعی پیکربندی نشده است.', 'matin-ai' ) ),
 		};
-		if ( is_wp_error( $result ) && 'matin_provider_off' !== $result->get_error_code() ) {
-			$detail = (string) ( $result->get_error_data()['detail'] ?? $result->get_error_code() );
-			Matin_AI_Logger::log( 'error', 'ai', 'پاسخ هوش مصنوعی ناموفق بود: ' . $detail, [ 'provider' => $provider, 'code' => $result->get_error_code() ] );
+		// Fail over to a separately configured Gemini free-tier key when the primary provider fails.
+		$options = class_exists( 'Matin_AI_Admin' ) ? Matin_AI_Admin::get_options() : [];
+		if ( is_wp_error( $result ) && 'openrouter' === $provider && ! empty( $options['ai_fallback_enabled'] ) && '' !== self::config( 'MATIN_FALLBACK_GEMINI_API_KEY' ) ) {
+			$fallback = self::gemini_fallback( $instruction );
+			if ( ! is_wp_error( $fallback ) ) { if ( class_exists( 'Matin_AI_Operations' ) ) { Matin_AI_Operations::log( 'ai_fallback_recovered', 0, 'primary=' . $provider . ';fallback=gemini' ); } return $fallback; }
+			if ( class_exists( 'Matin_AI_Operations' ) ) { Matin_AI_Operations::log( 'ai_provider_failure', 0, 'primary=' . $provider . ';error=' . $result->get_error_code() . ';fallback=' . $fallback->get_error_code() ); }
 		}
+		if ( is_wp_error( $result ) && class_exists( 'Matin_AI_Operations' ) ) { Matin_AI_Operations::log( 'ai_provider_failure', 0, 'provider=' . $provider . ';error=' . $result->get_error_code() ); }
 		return $result;
 	}
-
-	/**
-	 * Administrator connection test. Returns the real outcome, including the provider's own message.
-	 *
-	 * @return array{ok:bool,message:string}
-	 */
-	public static function test() : array {
-		if ( class_exists( 'Matin_AI_Admin' ) && empty( Matin_AI_Admin::get_options()['ai_enabled'] ) ) {
-			return [ 'ok' => false, 'message' => 'دستیار هوش مصنوعی غیرفعال است. گزینه «فعال بودن» را روشن و ذخیره کنید.' ];
-		}
-		$provider = strtolower( (string) self::config( 'MATIN_AI_PROVIDER', 'none' ) );
-		$result = match ( $provider ) {
-			'gemini'     => self::gemini( 'فقط کلمه «آماده» را پاسخ بده.' ),
-			'openai'     => self::openai( 'فقط کلمه «آماده» را پاسخ بده.' ),
-			'openrouter' => self::openrouter( 'فقط کلمه «آماده» را پاسخ بده.' ),
-			'compatible' => self::compatible( 'فقط کلمه «آماده» را پاسخ بده.' ),
-			default      => new WP_Error( 'matin_provider_off', 'ارائه‌دهنده انتخاب نشده است.' ),
-		};
-		if ( is_wp_error( $result ) ) {
-			return [ 'ok' => false, 'message' => (string) ( $result->get_error_data()['detail'] ?? $result->get_error_message() ) ];
-		}
-		return [ 'ok' => true, 'message' => 'اتصال برقرار است. پاسخ سرویس: ' . mb_substr( $result, 0, 80, 'UTF-8' ) ];
-	}
-
 	private static function config( string $name, string $default = '' ) : string {
 		if ( defined( $name ) ) { return (string) constant( $name ); }
 		$value = getenv( $name ); if ( false !== $value && '' !== (string) $value ) { return (string) $value; }
 		$options = class_exists( 'Matin_AI_Admin' ) ? Matin_AI_Admin::get_options() : [];
-		$map = [ 'MATIN_AI_PROVIDER' => 'ai_provider', 'MATIN_GEMINI_MODEL' => 'ai_model', 'MATIN_OPENAI_MODEL' => 'ai_model', 'MATIN_COMPATIBLE_MODEL' => 'ai_model', 'MATIN_OPENROUTER_MODEL' => 'ai_model', 'MATIN_COMPATIBLE_BASE_URL' => 'compatible_base_url' ];
+		$map = [ 'MATIN_AI_PROVIDER' => 'ai_provider', 'MATIN_GEMINI_API_KEY' => 'ai_api_key', 'MATIN_GEMINI_MODEL' => 'ai_model', 'MATIN_OPENAI_API_KEY' => 'ai_api_key', 'MATIN_OPENAI_MODEL' => 'ai_model', 'MATIN_COMPATIBLE_API_KEY' => 'ai_api_key', 'MATIN_COMPATIBLE_MODEL' => 'ai_model', 'MATIN_COMPATIBLE_BASE_URL' => 'compatible_base_url', 'MATIN_OPENROUTER_API_KEY' => 'ai_api_key', 'MATIN_OPENROUTER_MODEL' => 'ai_model', 'MATIN_FALLBACK_GEMINI_API_KEY' => 'ai_fallback_gemini_api_key', 'MATIN_FALLBACK_GEMINI_MODEL' => 'ai_fallback_gemini_model' ];
 		if ( isset( $map[ $name ], $options[ $map[ $name ] ] ) && '' !== (string) $options[ $map[ $name ] ] ) { return (string) $options[ $map[ $name ] ]; }
 		return $default;
 	}
-
-	/** API key lookup: constant, then environment, then encrypted admin setting. */
-	private static function key( string $constant ) : string {
-		if ( defined( $constant ) ) { return (string) constant( $constant ); }
-		$env = getenv( $constant ); if ( false !== $env && '' !== (string) $env ) { return (string) $env; }
-		$stored = (string) ( Matin_AI_Admin::get_options()['ai_api_key'] ?? '' );
-		return Matin_AI_Secrets::decrypt( $stored, Matin_AI_Messaging::secret_material() );
-	}
-
-	/** Builds a WP_Error with a public message and an administrator-only detail (redacted). */
-	private static function failure( string $code, string $public, string $detail ) : WP_Error {
-		return new WP_Error( $code, $public, [ 'detail' => Matin_AI_Logger::redact_text( $detail ) ] );
-	}
-
-	/** Explains an HTTP failure from a provider, using the provider's own error message when present. */
-	private static function http_failure( string $name, array|WP_Error $response, string $public ) : WP_Error {
-		if ( is_wp_error( $response ) ) {
-			return self::failure( 'matin_ai_unavailable', $public, $name . ': اتصال از سرور وردپرس برقرار نشد (' . $response->get_error_message() . '). احتمالاً سرور به اینترنت یا آدرس API دسترسی ندارد.' );
-		}
-		$code    = (int) wp_remote_retrieve_response_code( $response );
-		$body    = json_decode( (string) wp_remote_retrieve_body( $response ), true );
-		$message = is_array( $body ) ? (string) ( $body['error']['message'] ?? '' ) : '';
-		$hint    = match ( true ) {
-			401 === $code || 403 === $code => 'کلید API نامعتبر است، یا API در حساب شما فعال نیست، یا منطقه سرور مجاز نیست.',
-			404 === $code                  => 'نام مدل اشتباه است یا در دسترس نیست.',
-			429 === $code                  => 'سهمیه یا محدودیت نرخ درخواست پر شده است.',
-			default                        => 'خطای سرویس.',
-		};
-		return self::failure( 'matin_ai_unavailable', $public, $name . ' HTTP ' . $code . ': ' . $hint . ( '' !== $message ? ' پیام سرویس: ' . $message : '' ) );
-	}
-
 	private static function gemini( string $instruction ) : string|WP_Error {
-		$key = self::key( 'MATIN_GEMINI_API_KEY' ); if ( '' === $key ) { return self::failure( 'matin_key', __( 'Gemini پیکربندی نشده است.', 'matin-ai' ), 'کلید Gemini در تنظیمات ذخیره نشده است.' ); }
+		$key = self::config( 'MATIN_GEMINI_API_KEY' ); if ( '' === $key ) { return new WP_Error( 'matin_key', __( 'Gemini پیکربندی نشده است.', 'matin-ai' ) ); }
 		$model = rawurlencode( self::config( 'MATIN_GEMINI_MODEL', 'gemini-2.5-flash' ) );
-		// The key travels in a header, not in the URL, so it cannot end up in server or proxy access logs.
-		$response = wp_remote_post( "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent", [ 'timeout' => 35, 'headers' => [ 'Content-Type' => 'application/json', 'x-goog-api-key' => $key ], 'body' => wp_json_encode( [ 'contents' => [ [ 'parts' => [ [ 'text' => $instruction ] ] ] ], 'generationConfig' => [ 'temperature' => 0.2, 'maxOutputTokens' => 700 ] ] ) ] );
-		if ( is_wp_error( $response ) || 200 !== wp_remote_retrieve_response_code( $response ) ) { return self::http_failure( 'Gemini', $response, __( 'Gemini موقتاً در دسترس نیست.', 'matin-ai' ) ); }
+		$response = wp_remote_post( "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key=" . rawurlencode( $key ), [ 'timeout' => 35, 'headers' => [ 'Content-Type' => 'application/json' ], 'body' => wp_json_encode( [ 'contents' => [ [ 'parts' => [ [ 'text' => $instruction ] ] ] ], 'generationConfig' => [ 'temperature' => 0.2, 'maxOutputTokens' => 700 ] ] ) ] );
+		if ( is_wp_error( $response ) || 200 !== wp_remote_retrieve_response_code( $response ) ) { return new WP_Error( 'matin_ai_unavailable', __( 'Gemini موقتاً در دسترس نیست.', 'matin-ai' ) ); }
 		$body = json_decode( wp_remote_retrieve_body( $response ), true );
 		$candidate = $body['candidates'][0] ?? [];
 		if ( 'MAX_TOKENS' === ( $candidate['finishReason'] ?? '' ) ) { return new WP_Error( 'matin_ai_truncated', __( 'پاسخ هوش مصنوعی کامل تولید نشد. لطفاً سؤال را کوتاه‌تر کنید یا دوباره تلاش کنید.', 'matin-ai' ) ); }
 		$parts = $candidate['content']['parts'] ?? [];
 		$text = implode( "\n", array_filter( array_map( static fn( $part ) => is_array( $part ) ? (string) ( $part['text'] ?? '' ) : '', $parts ) ) );
-		return self::clean( $text, 'Gemini' );
+		return self::clean( $text );
 	}
-
 	private static function openai( string $instruction ) : string|WP_Error {
-		$key = self::key( 'MATIN_OPENAI_API_KEY' ); if ( '' === $key ) { return self::failure( 'matin_key', __( 'اتصال OpenAI پیکربندی نشده است.', 'matin-ai' ), 'کلید OpenAI در تنظیمات ذخیره نشده است.' ); }
+		$key = self::config( 'MATIN_OPENAI_API_KEY' ); if ( '' === $key ) { return new WP_Error( 'matin_key', __( 'اتصال OpenAI پیکربندی نشده است.', 'matin-ai' ) ); }
 		$response = wp_remote_post( 'https://api.openai.com/v1/responses', [ 'timeout' => 35, 'headers' => [ 'Content-Type' => 'application/json', 'Authorization' => 'Bearer ' . $key ], 'body' => wp_json_encode( [ 'model' => self::config( 'MATIN_OPENAI_MODEL', 'gpt-4.1-mini' ), 'input' => $instruction, 'max_output_tokens' => 700 ] ) ] );
-		if ( is_wp_error( $response ) || 200 !== wp_remote_retrieve_response_code( $response ) ) { return self::http_failure( 'OpenAI', $response, __( 'سرویس OpenAI موقتاً در دسترس نیست.', 'matin-ai' ) ); }
+		if ( is_wp_error( $response ) || 200 !== wp_remote_retrieve_response_code( $response ) ) { return new WP_Error( 'matin_ai_unavailable', __( 'OpenAI is temporarily unavailable.', 'matin-ai' ) ); }
 		$body = json_decode( wp_remote_retrieve_body( $response ), true );
 		if ( ! empty( $body['incomplete_details']['reason'] ) ) { return new WP_Error( 'matin_ai_truncated', __( 'پاسخ هوش مصنوعی کامل تولید نشد. لطفاً دوباره تلاش کنید.', 'matin-ai' ) ); }
 		$texts = []; foreach ( (array) ( $body['output'] ?? [] ) as $output ) { foreach ( (array) ( $output['content'] ?? [] ) as $content ) { if ( isset( $content['text'] ) && is_string( $content['text'] ) ) { $texts[] = $content['text']; } } }
-		return self::clean( implode( "\n", $texts ), 'OpenAI' );
+		return self::clean( implode( "\n", $texts ) );
+	}
+	/** OpenRouter uses the OpenAI-compatible chat completions endpoint. */
+	private static function openrouter( string $instruction ) : string|WP_Error {
+		$key = self::config( 'MATIN_OPENROUTER_API_KEY' );
+		if ( '' === $key ) { return new WP_Error( 'matin_key', __( 'کلید API مربوط به OpenRouter وارد نشده است.', 'matin-ai' ) ); }
+		$model = trim( self::config( 'MATIN_OPENROUTER_MODEL', 'openrouter/free' ) );
+		if ( '' === $model ) { $model = 'openrouter/free'; }
+		$headers = [ 'Content-Type' => 'application/json', 'Authorization' => 'Bearer ' . $key, 'HTTP-Referer' => home_url( '/' ), 'X-Title' => 'Matin AI' ];
+		$response = wp_remote_post( 'https://openrouter.ai/api/v1/chat/completions', [
+			'timeout' => 50,
+			'headers' => $headers,
+			'body' => wp_json_encode( [ 'model' => $model, 'messages' => [ [ 'role' => 'user', 'content' => $instruction ] ], 'temperature' => 0.2, 'max_tokens' => 1200 ] ),
+		] );
+		if ( is_wp_error( $response ) ) { return new WP_Error( 'matin_ai_unavailable', __( 'ارتباط با OpenRouter برقرار نشد. اتصال سرور را بررسی و دوباره تلاش کنید.', 'matin-ai' ) ); }
+		$status = (int) wp_remote_retrieve_response_code( $response );
+		$body = json_decode( wp_remote_retrieve_body( $response ), true );
+		if ( 429 === $status ) { return new WP_Error( 'matin_ai_rate_limited', __( 'سهمیه یا محدودیت موقت OpenRouter پر شده است. کمی بعد دوباره تلاش کنید یا مدل رایگان دیگری انتخاب کنید.', 'matin-ai' ) ); }
+		if ( 401 === $status || 403 === $status ) { return new WP_Error( 'matin_ai_auth', __( 'کلید OpenRouter معتبر نیست یا دسترسی لازم را ندارد. کلید را در تنظیمات بررسی کنید.', 'matin-ai' ) ); }
+		if ( 200 !== $status ) { return new WP_Error( 'matin_ai_unavailable', __( 'OpenRouter در حال حاضر پاسخ موفقی نداد. مدل انتخابی ممکن است موقتاً در دسترس نباشد.', 'matin-ai' ) ); }
+		$content = $body['choices'][0]['message']['content'] ?? '';
+		if ( is_array( $content ) ) { $content = implode( "\n", array_filter( array_map( static fn( $part ) => is_array( $part ) ? (string) ( $part['text'] ?? '' ) : '', $content ) ) ); }
+		$finish = $body['choices'][0]['finish_reason'] ?? '';
+		if ( 'length' === $finish ) { return new WP_Error( 'matin_ai_truncated', __( 'پاسخ به سقف طول مدل رسید. دوباره سؤال کنید یا مدل دیگری انتخاب کنید.', 'matin-ai' ) ); }
+		return self::clean( $content );
 	}
 
-	/** OpenRouter exposes an OpenAI-compatible chat API; free models carry the ":free" suffix. */
-	private static function openrouter( string $instruction ) : string|WP_Error {
-		$key   = self::key( 'MATIN_OPENROUTER_API_KEY' ); if ( '' === $key ) { return self::failure( 'matin_key', __( 'اتصال OpenRouter پیکربندی نشده است.', 'matin-ai' ), 'کلید OpenRouter در تنظیمات ذخیره نشده است.' ); }
-		$model = self::config( 'MATIN_OPENROUTER_MODEL' ); if ( '' === $model ) { return self::failure( 'matin_key', __( 'مدل OpenRouter در تنظیمات مشخص نشده است.', 'matin-ai' ), 'نام مدل OpenRouter در تنظیمات خالی است.' ); }
-		$response = wp_remote_post( 'https://openrouter.ai/api/v1/chat/completions', [ 'timeout' => 35, 'headers' => [ 'Content-Type' => 'application/json', 'Authorization' => 'Bearer ' . $key, 'HTTP-Referer' => home_url( '/' ), 'X-Title' => 'Matin AI' ], 'body' => wp_json_encode( [ 'model' => $model, 'messages' => [ [ 'role' => 'user', 'content' => $instruction ] ], 'temperature' => 0.2, 'max_tokens' => 700 ] ) ] );
-		if ( is_wp_error( $response ) || 200 !== wp_remote_retrieve_response_code( $response ) ) { return self::http_failure( 'OpenRouter', $response, __( 'OpenRouter موقتاً در دسترس نیست.', 'matin-ai' ) ); }
+	/** Gemini fallback uses its own key and model, independent of the primary OpenRouter key. */
+	private static function gemini_fallback( string $instruction ) : string|WP_Error {
+		$key = self::config( 'MATIN_FALLBACK_GEMINI_API_KEY' );
+		$model = rawurlencode( self::config( 'MATIN_FALLBACK_GEMINI_MODEL', 'gemini-2.5-flash' ) );
+		if ( '' === $key ) { return new WP_Error( 'matin_fallback_key', __( 'کلید جایگزین Gemini تنظیم نشده است.', 'matin-ai' ) ); }
+		$response = wp_remote_post( "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key=" . rawurlencode( $key ), [ 'timeout' => 35, 'headers' => [ 'Content-Type' => 'application/json' ], 'body' => wp_json_encode( [ 'contents' => [ [ 'parts' => [ [ 'text' => $instruction ] ] ] ], 'generationConfig' => [ 'temperature' => 0.2, 'maxOutputTokens' => 1200 ] ] ) ] );
+		if ( is_wp_error( $response ) || 200 !== wp_remote_retrieve_response_code( $response ) ) { return new WP_Error( 'matin_fallback_unavailable', __( 'ارائه‌دهندهٔ اصلی و Gemini جایگزین در دسترس نیستند.', 'matin-ai' ) ); }
 		$body = json_decode( wp_remote_retrieve_body( $response ), true );
-		return self::clean( $body['choices'][0]['message']['content'] ?? '', 'OpenRouter' );
+		$candidate = $body['candidates'][0] ?? [];
+		if ( 'MAX_TOKENS' === ( $candidate['finishReason'] ?? '' ) ) { return new WP_Error( 'matin_fallback_truncated', __( 'پاسخ Gemini جایگزین کامل نبود.', 'matin-ai' ) ); }
+		$parts = $candidate['content']['parts'] ?? [];
+		$text = implode( "\n", array_filter( array_map( static fn( $part ) => is_array( $part ) ? (string) ( $part['text'] ?? '' ) : '', $parts ) ) );
+		return self::clean( $text );
 	}
 
 	private static function compatible( string $instruction ) : string|WP_Error {
-		$base = rtrim( self::config( 'MATIN_COMPATIBLE_BASE_URL' ), '/' ); $key = self::key( 'MATIN_COMPATIBLE_API_KEY' );
-		if ( '' === $base || '' === $key ) { return self::failure( 'matin_key', __( 'ارائه‌دهنده هوش مصنوعی سازگار پیکربندی نشده است.', 'matin-ai' ), 'آدرس پایه یا کلید API برای ارائه‌دهنده سازگار خالی است.' ); }
+		$base = rtrim( self::config( 'MATIN_COMPATIBLE_BASE_URL' ), '/' ); $key = self::config( 'MATIN_COMPATIBLE_API_KEY' );
+		if ( '' === $base || '' === $key ) { return new WP_Error( 'matin_key', __( 'ارائه‌دهنده هوش مصنوعی سازگار پیکربندی نشده است.', 'matin-ai' ) ); }
 		$response = wp_remote_post( $base . '/chat/completions', [ 'timeout' => 35, 'headers' => [ 'Content-Type' => 'application/json', 'Authorization' => 'Bearer ' . $key ], 'body' => wp_json_encode( [ 'model' => self::config( 'MATIN_COMPATIBLE_MODEL' ), 'messages' => [ [ 'role' => 'user', 'content' => $instruction ] ], 'temperature' => 0.2, 'max_tokens' => 700 ] ) ] );
-		if ( is_wp_error( $response ) || 200 !== wp_remote_retrieve_response_code( $response ) ) { return self::http_failure( 'سازگار', $response, __( 'سرویس هوش مصنوعی موقتاً در دسترس نیست.', 'matin-ai' ) ); }
-		$body = json_decode( wp_remote_retrieve_body( $response ), true ); return self::clean( $body['choices'][0]['message']['content'] ?? '', 'سازگار' );
+		if ( is_wp_error( $response ) || 200 !== wp_remote_retrieve_response_code( $response ) ) { return new WP_Error( 'matin_ai_unavailable', __( 'سرویس هوش مصنوعی موقتاً در دسترس نیست.', 'matin-ai' ) ); }
+		$body = json_decode( wp_remote_retrieve_body( $response ), true ); return self::clean( $body['choices'][0]['message']['content'] ?? '' );
 	}
-
-	private static function clean( mixed $text, string $name = '' ) : string|WP_Error {
-		$text = sanitize_textarea_field( is_string( $text ) ? $text : '' );
-		return '' === $text ? self::failure( 'matin_ai_empty', __( 'پاسخ قابل استفاده‌ای از سرویس هوش مصنوعی دریافت نشد.', 'matin-ai' ), $name . ': پاسخ خالی یا بدون متن بود (ممکن است مدل پاسخی نداده یا محتوا فیلتر شده باشد).' ) : $text;
-	}
+	private static function clean( mixed $text ) : string|WP_Error { $text = sanitize_textarea_field( is_string( $text ) ? $text : '' ); return '' === $text ? new WP_Error( 'matin_ai_empty', __( 'پاسخ قابل استفاده‌ای از سرویس هوش مصنوعی دریافت نشد.', 'matin-ai' ) ) : $text; }
 }
