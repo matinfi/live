@@ -8,14 +8,55 @@ final class Matin_AI_Operations {
 		add_action( 'admin_post_nopriv_matin_ticket', [ __CLASS__, 'deny_ticket' ] );
 		add_action( 'admin_post_matin_retry_whatsapp', [ __CLASS__, 'prepare_whatsapp' ] );
 		add_action( 'transition_post_status', [ __CLASS__, 'log_reservation_transition' ], 10, 3 );
+		if ( get_option( 'matin_ai_audit_version' ) !== self::AUDIT_VERSION ) { add_action( 'init', [ __CLASS__, 'install_audit_table' ], 1 ); }
 	}
 
+	public const AUDIT_VERSION = '1';
+
+	public static function audit_table() : string { global $wpdb; return $wpdb->prefix . 'matin_ai_audit'; }
+
+	/** Creates the audit table (also on upgrade, when the stored version differs). */
+	public static function install_audit_table() : void {
+		global $wpdb;
+		require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+		$charset = $wpdb->get_charset_collate();
+		$table   = self::audit_table();
+		dbDelta( "CREATE TABLE {$table} (
+			id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+			created_at DATETIME NOT NULL,
+			event VARCHAR(64) NOT NULL,
+			reservation_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+			actor BIGINT UNSIGNED NOT NULL DEFAULT 0,
+			detail VARCHAR(255) NOT NULL DEFAULT '',
+			PRIMARY KEY  (id),
+			KEY created_at (created_at)
+		) {$charset};" );
+		update_option( 'matin_ai_audit_version', self::AUDIT_VERSION, false );
+	}
+
+	/** Single INSERT per event: no read-modify-write, so concurrent requests cannot drop entries. */
 	public static function log( string $event, int $reservation_id = 0, string $detail = '' ) : void {
-		$items = get_option( 'matin_ai_audit_log', [] );
-		if ( ! is_array( $items ) ) { $items = []; }
-		$items[] = [ 'time' => current_time( 'mysql' ), 'event' => sanitize_key( $event ), 'reservation_id' => absint( $reservation_id ), 'actor' => get_current_user_id(), 'detail' => sanitize_text_field( $detail ) ];
-		if ( count( $items ) > 500 ) { $items = array_slice( $items, -500 ); }
-		update_option( 'matin_ai_audit_log', $items, false );
+		global $wpdb;
+		if ( get_option( 'matin_ai_audit_version' ) !== self::AUDIT_VERSION ) { self::install_audit_table(); }
+		$ok = $wpdb->insert( self::audit_table(), [
+			'created_at'     => current_time( 'mysql' ),
+			'event'          => substr( sanitize_key( $event ), 0, 64 ),
+			'reservation_id' => absint( $reservation_id ),
+			'actor'          => get_current_user_id(),
+			'detail'         => substr( sanitize_text_field( $detail ), 0, 255 ),
+		] );
+		if ( false === $ok ) { error_log( '[Matin AI] audit insert failed: ' . $event ); return; }
+		// Retention: keep the newest 5000 rows; trimmed on about 1 in 100 writes.
+		if ( 0 === wp_rand( 0, 99 ) ) {
+			$cut = (int) $wpdb->get_var( "SELECT id FROM " . self::audit_table() . " ORDER BY id DESC LIMIT 1 OFFSET 5000" );
+			if ( $cut > 0 ) { $wpdb->query( $wpdb->prepare( 'DELETE FROM ' . self::audit_table() . ' WHERE id <= %d', $cut ) ); }
+		}
+	}
+
+	/** Newest audit rows first. */
+	public static function recent( int $limit = 50 ) : array {
+		global $wpdb;
+		return (array) $wpdb->get_results( $wpdb->prepare( 'SELECT created_at AS time, event, reservation_id, actor, detail FROM ' . self::audit_table() . ' ORDER BY id DESC LIMIT %d', max( 1, min( 500, $limit ) ) ), ARRAY_A );
 	}
 
 	/** Event start as a Unix timestamp in the site time zone, or null when missing or invalid. */
@@ -63,7 +104,9 @@ final class Matin_AI_Operations {
 		$event_id = (int) get_post_meta( $reservation_id, '_matin_event_id', true );
 		$email    = sanitize_email( (string) get_post_meta( $reservation_id, '_matin_email', true ) );
 		if ( is_email( $email ) ) {
-			wp_mail( $email, 'تأیید لغو رزرو Matin AI', sprintf( "رزرو شما برای «%s» لغو شد. کد رزرو: %s\nرسید لغو در پنل کاربری قابل دریافت است.", get_the_title( $event_id ), (string) get_post_meta( $reservation_id, '_matin_ticket_code', true ) ) );
+			$cancel_sent = wp_mail( $email, 'تأیید لغو رزرو Matin AI', sprintf( "رزرو شما برای «%s» لغو شد. کد رزرو: %s\nرسید لغو در پنل کاربری قابل دریافت است.", get_the_title( $event_id ), (string) get_post_meta( $reservation_id, '_matin_ticket_code', true ) ) );
+			update_post_meta( $reservation_id, '_matin_cancel_email_status', $cancel_sent ? 'sent' : 'failed' );
+			if ( ! $cancel_sent ) { self::log( 'cancel_email_failed', $reservation_id, 'wp_mail_returned_false' ); }
 		}
 		return true;
 	}

@@ -1,0 +1,89 @@
+/* Matin AI: app layer, loaded last.
+ * Mobile sidebar, chat cards on phones, in-app page view, and the login / register card. */
+
+[hidden] { display: none !important; }
+
+/* ---------- Sidebar pages (in the chat menu) ---------- */
+.sidebar-pages { display: grid; gap: .3rem; }
+.sidebar-pages > p { margin: 0 0 .25rem; font-size: .72rem; font-weight: 800; letter-spacing: .08em; opacity: .7; }
+.sidebar-page-link { display: block; padding: .6rem .75rem; border-radius: .7rem; color: inherit; text-decoration: none; background: rgba(255, 255, 255, .06); font-size: .9rem; font-weight: 600; }
+.sidebar-page-link:hover, .sidebar-page-link:focus-visible { background: rgba(255, 255, 255, .14); outline: none; }
+
+/* ---------- In-app page view (sits in the chat's main row) ---------- */
+.page-view { grid-row: 2; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 0 clamp(1rem, 5vw, 3.5rem) 2.5rem; }
+.page-view-bar { position: sticky; top: 0; z-index: 2; padding: .75rem 0; background: var(--ui-panel, #fff); }
+.page-back { border: 1px solid #d6dbd0; background: #fff; color: #1f2b1d; border-radius: 999px; padding: .45rem .9rem; font: inherit; font-weight: 700; font-size: .9rem; cursor: pointer; }
+.page-back:hover { background: #f4f6f1; }
+.page-view-body { width: min(960px, 100%); margin: 0 auto; }
+.page-view.is-loading .page-view-body { opacity: .55; transition: opacity .15s; }
+.page-view-body .matin-page-panel, .page-view-body .matin-catalog, .page-view-body .matin-detail { padding-top: .5rem; }
+
+/* ---------- Login / register card ---------- */
+.matin-auth { position: relative; max-width: 440px; margin: 0 auto; padding: clamp(.5rem, 3vw, 2rem) 0 2rem; direction: rtl; }
+.matin-auth-intro { text-align: center; margin-bottom: 1.3rem; }
+.matin-auth-mark { display: inline-grid; place-items: center; width: 52px; height: 52px; border-radius: 16px; background: #324832; color: #fff; font-weight: 800; font-size: 1.3rem; margin-bottom: .7rem; }
+.matin-auth-intro h1 { font-size: clamp(1.3rem, 4vw, 1.65rem); margin: 0 0 .35rem; }
+.matin-auth-intro p { margin: 0; color: #5f665c; font-size: .95rem; line-height: 1.7; }
+.matin-auth-card { position: relative; background: #fff; border: 1px solid #e1e3dc; border-radius: 20px; padding: 1.1rem; box-shadow: 0 14px 36px rgba(38, 44, 50, .08); }
+.matin-auth-radio { position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px; }
+.matin-auth-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; background: #f1f3ee; border-radius: 14px; padding: 4px; margin-bottom: 1.1rem; }
+.matin-auth-tab { text-align: center; padding: .6rem .5rem; border-radius: 11px; font-weight: 700; font-size: .95rem; color: #4d5a48; cursor: pointer; }
+#matin-tab-login:checked ~ .matin-auth-tabs label[for="matin-tab-login"],
+#matin-tab-register:checked ~ .matin-auth-tabs label[for="matin-tab-register"] { background: #fff; color: #1f2b1d; box-shadow: 0 2px 8px rgba(0, 0, 0, .08); }
+#matin-tab-register:checked ~ .matin-auth-login,
+#matin-tab-login:checked ~ .matin-auth-register { display: none; }
+.matin-auth-form { display: grid; gap: .9rem; }
+.matin-field { display: grid; gap: .4rem; }
+.matin-field > span { font-size: .88rem; font-weight: 700; color: #2f3a2c; }
+.matin-field input { width: 100%; min-height: 48px; padding: .7rem .9rem; border: 1.5px solid #d6dbd0; border-radius: 12px; font: inherit; font-size: 16px; background: #fdfdfb; color: #1d241b; box-sizing: border-box; }
+.matin-field input:focus { outline: none; border-color: #324832; box-shadow: 0 0 0 3px rgba(50, 72, 50, .15); background: #fff; }
+.matin-check { display: flex; align-items: center; gap: .5rem; font-size: .92rem; color: #4d5a48; }
+.matin-check input { width: 18px; height: 18px; accent-color: #324832; }
+.matin-auth-submit { min-height: 50px; border: 0; border-radius: 14px; background: #324832; color: #fff; font: inherit; font-weight: 800; font-size: 1rem; cursor: pointer; }
+.matin-auth-submit:hover { background: #263a26; }
+.matin-auth-submit:focus-visible { outline: 3px solid rgba(50, 72, 50, .35); outline-offset: 2px; }
+.matin-auth .matin-notice { margin: 0 0 1rem; padding: .7rem .9rem; border-radius: 12px; font-size: .92rem; }
+
+/* ---------- Mobile: sidebar, cards, layout ---------- */
+@media (max-width: 760px) {
+	.chat-app, .chat-app.sidebar-collapsed { grid-template-columns: minmax(0, 1fr) !important; }
+	.chat-sidebar {
+		position: fixed !important; top: 0; bottom: 0; height: 100dvh !important; max-height: 100dvh;
+		inset-inline-start: auto !important; inset-inline-end: 0 !important;
+		width: min(330px, 88vw) !important; margin: 0 !important; padding: 1.1rem 1rem 1.5rem !important;
+		overflow-y: auto; overscroll-behavior: contain; z-index: 60;
+		transform: translateX(104%) !important; visibility: hidden;
+		transition: transform .25s ease, visibility .25s; box-shadow: 0 0 40px rgba(0, 0, 0, .35);
+	}
+	html[dir="ltr"] .chat-sidebar { inset-inline-end: auto !important; inset-inline-start: 0 !important; transform: translateX(-104%) !important; }
+	body.sidebar-open .chat-sidebar { transform: none !important; visibility: visible; }
+	body.sidebar-open::before { content: ""; position: fixed; inset: 0; background: rgba(10, 14, 11, .45); z-index: 55; }
+	.mobile-sidebar-open { display: inline-grid; place-items: center; }
+	.chat-topbar { flex-wrap: wrap; gap: .6rem; padding: .7rem .9rem; }
+	.chat-topbar h1 { font-size: 1.05rem; }
+	.top-actions { gap: .4rem; }
+	.composer textarea, .composer input { font-size: 16px; }
+	.composer-wrap { padding: .6rem .8rem 1rem; }
+	.conversation { padding: 1.2rem .9rem; }
+	.page-view { padding: .25rem .9rem 2rem; }
+	.page-view-bar { padding: .6rem 0; }
+	.chat-cards { display: grid !important; grid-template-columns: minmax(0, 1fr) !important; gap: .7rem; margin-top: .8rem; }
+	.chat-card { display: flex !important; flex-direction: row; grid-template-columns: none !important; align-items: stretch; min-width: 0; width: 100%; }
+	.chat-card-image { flex: 0 0 96px !important; width: 96px; height: auto !important; min-height: 120px; min-width: 0; }
+	.chat-card-image img { width: 100%; height: 100%; object-fit: cover; }
+	.chat-card-body { flex: 1 1 auto; min-width: 0; padding: .7rem .75rem !important; }
+	.chat-card h3 { overflow-wrap: anywhere; }
+	.chat-card-actions { display: flex; flex-direction: row !important; flex-wrap: wrap; gap: .4rem; }
+	.chat-card-actions > * { flex: 1 1 auto; }
+	.matin-account-layout { grid-template-columns: 1fr !important; }
+	.matin-auth-card { padding: .9rem; }
+}
+
+/* The page view has its own back button, so the page's inner back link is hidden there. */
+.page-view-body .matin-catalog-head > .matin-back { display: none; }
+@media (max-width: 760px) {
+	.matin-catalog-image { aspect-ratio: 16 / 9; height: auto !important; max-height: 220px; }
+	.matin-catalog-head h1 { font-size: 1.5rem; }
+}
+
+.matin-auth-note{text-align:center;margin:12px 0 0;font-size:14px}.matin-auth-note a{color:inherit;text-decoration:underline}

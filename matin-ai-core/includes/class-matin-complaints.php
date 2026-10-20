@@ -82,7 +82,7 @@ final class Matin_AI_Complaints {
 		if ( ! wp_verify_nonce( $nonce, 'matin_ai_complaint' ) ) { wp_safe_redirect( add_query_arg( 'complaint', 'invalid', $target ) ); exit; }
 		if ( '' !== trim( (string) ( $_POST['matin_website'] ?? '' ) ) ) { wp_safe_redirect( add_query_arg( 'complaint', 'ok', $target ) ); exit; } // Honeypot: pretend success.
 
-		$ip_key = 'matin_complaint_rl_' . md5( sanitize_text_field( wp_unslash( $_SERVER['REMOTE_ADDR'] ?? 'unknown' ) ) );
+		$ip_key = 'matin_complaint_rl_' . md5( Matin_AI_REST::client_ip() );
 		$count  = (int) get_transient( $ip_key );
 		if ( $count >= self::RATE_LIMIT ) { wp_safe_redirect( add_query_arg( 'complaint', 'limit', $target ) ); exit; }
 
@@ -111,7 +111,9 @@ final class Matin_AI_Complaints {
 		Matin_AI_Operations::log( 'complaint_received', $rid, $type );
 
 		if ( is_email( $email ) ) {
-			wp_mail( $email, 'پیام شما به Matin AI رسید', "سلام " . wp_strip_all_tags( $name ) . "،\n\nپیام شما دریافت شد و بررسی می‌شود. از وقتی که گذاشتید سپاسگزاریم.\n\nMatin AI", [ 'Content-Type: text/plain; charset=UTF-8' ] );
+			$complaint_sent = wp_mail( $email, 'پیام شما به Matin AI رسید', "سلام " . wp_strip_all_tags( $name ) . "،\n\nپیام شما دریافت شد و بررسی می‌شود. از وقتی که گذاشتید سپاسگزاریم.\n\nMatin AI", [ 'Content-Type: text/plain; charset=UTF-8' ] );
+			update_post_meta( $id, '_matin_c_email_status', $complaint_sent ? 'sent' : 'failed' );
+			if ( ! $complaint_sent ) { Matin_AI_Operations::log( 'complaint_email_failed', $rid, 'wp_mail_returned_false' ); }
 		}
 		wp_safe_redirect( add_query_arg( 'complaint', 'ok', $target ) );
 		exit;

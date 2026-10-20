@@ -34,7 +34,7 @@ final class Matin_AI_Provider {
 	private static function gemini( string $instruction ) : string|WP_Error {
 		$key = self::config( 'MATIN_GEMINI_API_KEY' ); if ( '' === $key ) { return new WP_Error( 'matin_key', __( 'Gemini پیکربندی نشده است.', 'matin-ai' ) ); }
 		$model = rawurlencode( self::config( 'MATIN_GEMINI_MODEL', 'gemini-2.5-flash' ) );
-		$response = wp_remote_post( "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key=" . rawurlencode( $key ), [ 'timeout' => 35, 'headers' => [ 'Content-Type' => 'application/json' ], 'body' => wp_json_encode( [ 'contents' => [ [ 'parts' => [ [ 'text' => $instruction ] ] ] ], 'generationConfig' => [ 'temperature' => 0.2, 'maxOutputTokens' => 700 ] ] ) ] );
+		$response = wp_remote_post( "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent", [ 'timeout' => 35, 'headers' => [ 'Content-Type' => 'application/json', 'x-goog-api-key' => $key ], 'body' => wp_json_encode( [ 'contents' => [ [ 'parts' => [ [ 'text' => $instruction ] ] ] ], 'generationConfig' => [ 'temperature' => 0.2, 'maxOutputTokens' => 700 ] ] ) ] );
 		if ( is_wp_error( $response ) || 200 !== wp_remote_retrieve_response_code( $response ) ) { return new WP_Error( 'matin_ai_unavailable', __( 'Gemini موقتاً در دسترس نیست.', 'matin-ai' ) ); }
 		$body = json_decode( wp_remote_retrieve_body( $response ), true );
 		$candidate = $body['candidates'][0] ?? [];
@@ -82,7 +82,7 @@ final class Matin_AI_Provider {
 		$key = self::config( 'MATIN_FALLBACK_GEMINI_API_KEY' );
 		$model = rawurlencode( self::config( 'MATIN_FALLBACK_GEMINI_MODEL', 'gemini-2.5-flash' ) );
 		if ( '' === $key ) { return new WP_Error( 'matin_fallback_key', __( 'کلید جایگزین Gemini تنظیم نشده است.', 'matin-ai' ) ); }
-		$response = wp_remote_post( "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key=" . rawurlencode( $key ), [ 'timeout' => 35, 'headers' => [ 'Content-Type' => 'application/json' ], 'body' => wp_json_encode( [ 'contents' => [ [ 'parts' => [ [ 'text' => $instruction ] ] ] ], 'generationConfig' => [ 'temperature' => 0.2, 'maxOutputTokens' => 1200 ] ] ) ] );
+		$response = wp_remote_post( "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent", [ 'timeout' => 35, 'headers' => [ 'Content-Type' => 'application/json', 'x-goog-api-key' => $key ], 'body' => wp_json_encode( [ 'contents' => [ [ 'parts' => [ [ 'text' => $instruction ] ] ] ], 'generationConfig' => [ 'temperature' => 0.2, 'maxOutputTokens' => 1200 ] ] ) ] );
 		if ( is_wp_error( $response ) || 200 !== wp_remote_retrieve_response_code( $response ) ) { return new WP_Error( 'matin_fallback_unavailable', __( 'ارائه‌دهندهٔ اصلی و Gemini جایگزین در دسترس نیستند.', 'matin-ai' ) ); }
 		$body = json_decode( wp_remote_retrieve_body( $response ), true );
 		$candidate = $body['candidates'][0] ?? [];

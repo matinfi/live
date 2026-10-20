@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Matin AI Core
  * Description: Cafe and event discovery, the Matin AI assistant, reservations, tickets, customer follow-up, feedback and PWA support.
- * Version: 1.6.0
+ * Version: 1.6.8
  * Requires at least: 6.4
  * Requires PHP: 8.0
  * Text Domain: matin-ai
@@ -10,7 +10,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'MATIN_AI_CORE_VERSION', '1.6.0' );
+define( 'MATIN_AI_CORE_VERSION', '1.6.8' );
 define( 'MATIN_AI_CORE_DIR', plugin_dir_path( __FILE__ ) );
 
 require_once MATIN_AI_CORE_DIR . 'includes/class-matin-content.php';

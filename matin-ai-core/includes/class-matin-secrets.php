@@ -13,7 +13,7 @@ final class Matin_AI_Secrets {
 			return '';
 		}
 		if ( ! function_exists( 'sodium_crypto_secretbox' ) ) {
-			return $plain; // libsodium is missing: keep the value readable rather than losing it.
+			throw new \RuntimeException( 'libsodium_missing' ); // never store keys in plaintext
 		}
 		try {
 			$key    = self::derive( $material );
@@ -23,7 +23,7 @@ final class Matin_AI_Secrets {
 			return self::PREFIX . base64_encode( $nonce . $cipher );
 		} catch ( \Throwable $e ) {
 			// Never let a crypto failure take the whole site down; keep the value and let the admin see the readiness notice.
-			return $plain;
+			throw new \RuntimeException( 'encrypt_failed' );
 		}
 	}
 

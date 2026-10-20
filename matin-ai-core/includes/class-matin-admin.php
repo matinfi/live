@@ -8,6 +8,7 @@ final class Matin_AI_Admin {
 		add_action( 'admin_post_matin_admin_reservation_action', [ __CLASS__, 'reservation_action' ] );
 		add_action( 'admin_post_matin_export_reservation_report', [ __CLASS__, 'export_reservation_report' ] );
 		add_action( 'admin_init', [ __CLASS__, 'settings' ] );
+		add_action( 'admin_notices', [ __CLASS__, 'secret_notice' ] );
 		add_action( 'admin_enqueue_scripts', [ __CLASS__, 'styles' ] );
 		add_action( 'wp_ajax_matin_ai_test_connection', [ __CLASS__, 'ajax_test_ai_connection' ] );
 		add_action( 'add_meta_boxes', [ __CLASS__, 'reservation_summary_box' ] );
@@ -32,15 +33,15 @@ final class Matin_AI_Admin {
 		$out['cafe_fee_mode'] = in_array( $input['cafe_fee_mode'] ?? '', [ 'per_reservation', 'monthly', 'fixed' ], true ) ? $input['cafe_fee_mode'] : 'monthly';
 		$out['cafe_fee_amount'] = max( 0, min( 100000000, absint( $input['cafe_fee_amount'] ?? 0 ) ) );
 		$out['whatsapp_number'] = preg_replace( '/[^0-9]/', '', (string) ( $input['whatsapp_number'] ?? '' ) );
-		$out['whatsapp_access_token'] = '' !== trim( (string) ( $input['whatsapp_access_token'] ?? '' ) ) ? sanitize_text_field( $input['whatsapp_access_token'] ) : (string) ( $old_options['whatsapp_access_token'] ?? '' );
+		$out['whatsapp_access_token'] = '' !== trim( (string) ( $input['whatsapp_access_token'] ?? '' ) ) ? self::encrypt_secret( sanitize_text_field( $input['whatsapp_access_token'] ), (string) ( $old_options['whatsapp_access_token'] ?? '' ) ) : (string) ( $old_options['whatsapp_access_token'] ?? '' );
 		$out['whatsapp_phone_number_id'] = sanitize_text_field( $input['whatsapp_phone_number_id'] ?? ( $old_options['whatsapp_phone_number_id'] ?? '' ) );
 		$out['whatsapp_customer_template'] = sanitize_key( $input['whatsapp_customer_template'] ?? ( $old_options['whatsapp_customer_template'] ?? 'matin_reservation_ticket' ) );
 		$out['whatsapp_cafe_template'] = sanitize_key( $input['whatsapp_cafe_template'] ?? ( $old_options['whatsapp_cafe_template'] ?? 'matin_cafe_booking_alert' ) );
 		$out['whatsapp_template_language'] = sanitize_text_field( $input['whatsapp_template_language'] ?? ( $old_options['whatsapp_template_language'] ?? 'tr' ) );
 		$out['ai_provider'] = in_array( $input['ai_provider'] ?? '', [ 'gemini', 'openai', 'openrouter', 'compatible' ], true ) ? $input['ai_provider'] : 'gemini';
 		$out['ai_model'] = sanitize_text_field( $input['ai_model'] ?? '' );
-		$out['ai_api_key'] = '' !== trim( (string) ( $input['ai_api_key'] ?? '' ) ) ? self::encrypt_secret( sanitize_text_field( $input['ai_api_key'] ) ) : (string) ( $old_options['ai_api_key'] ?? '' );
-		$out['ai_fallback_gemini_api_key'] = '' !== trim( (string) ( $input['ai_fallback_gemini_api_key'] ?? '' ) ) ? self::encrypt_secret( sanitize_text_field( $input['ai_fallback_gemini_api_key'] ) ) : (string) ( $old_options['ai_fallback_gemini_api_key'] ?? '' );
+		$out['ai_api_key'] = '' !== trim( (string) ( $input['ai_api_key'] ?? '' ) ) ? self::encrypt_secret( sanitize_text_field( $input['ai_api_key'] ), (string) ( $old_options['ai_api_key'] ?? '' ) ) : (string) ( $old_options['ai_api_key'] ?? '' );
+		$out['ai_fallback_gemini_api_key'] = '' !== trim( (string) ( $input['ai_fallback_gemini_api_key'] ?? '' ) ) ? self::encrypt_secret( sanitize_text_field( $input['ai_fallback_gemini_api_key'] ), (string) ( $old_options['ai_fallback_gemini_api_key'] ?? '' ) ) : (string) ( $old_options['ai_fallback_gemini_api_key'] ?? '' );
 		$out['ai_fallback_gemini_model'] = sanitize_text_field( $input['ai_fallback_gemini_model'] ?? ( $old_options['ai_fallback_gemini_model'] ?? 'gemini-2.5-flash' ) );
 		$out['compatible_base_url'] = esc_url_raw( $input['compatible_base_url'] ?? '' );
 		$out['google_client_id'] = sanitize_text_field( $input['google_client_id'] ?? '' );
@@ -62,7 +63,7 @@ final class Matin_AI_Admin {
 	}
 	public static function get_options() : array {
 		$options = wp_parse_args( (array) get_option( 'matin_ai_options', [] ), self::defaults() );
-		foreach ( [ 'ai_api_key', 'ai_fallback_gemini_api_key' ] as $secret ) {
+		foreach ( [ 'ai_api_key', 'ai_fallback_gemini_api_key', 'whatsapp_access_token' ] as $secret ) {
 			if ( ! empty( $options[ $secret ] ) && class_exists( 'Matin_AI_Secrets' ) && Matin_AI_Secrets::is_encrypted( (string) $options[ $secret ] ) ) {
 				$options[ $secret ] = Matin_AI_Secrets::decrypt( (string) $options[ $secret ], self::secret_material() );
 			}
@@ -71,8 +72,20 @@ final class Matin_AI_Admin {
 	}
 
 	/** Encrypts an API key before it is written to wp_options. */
-	private static function encrypt_secret( string $plain ) : string {
-		return class_exists( 'Matin_AI_Secrets' ) ? Matin_AI_Secrets::encrypt( $plain, self::secret_material() ) : $plain;
+	/** Returns the encrypted value. If encryption is impossible (no libsodium), the previous stored value is kept and the admin is warned. */
+	private static function encrypt_secret( string $plain, string $previous = '' ) : string {
+		try {
+			if ( ! class_exists( 'Matin_AI_Secrets' ) ) { throw new \RuntimeException( 'secrets_missing' ); }
+			return Matin_AI_Secrets::encrypt( $plain, self::secret_material() );
+		} catch ( \Throwable $e ) {
+			set_transient( 'matin_ai_secret_refused', 1, 300 );
+			return $previous;
+		}
+	}
+	public static function secret_notice() : void {
+		if ( ! current_user_can( 'manage_options' ) ) { return; }
+		if ( ! function_exists( 'sodium_crypto_secretbox' ) ) { echo '<div class="notice notice-error"><p>libsodium فعال نیست؛ کلیدهای API ذخیره نمی‌شوند تا به‌صورت متن ساده ذخیره نشوند. افزونهٔ sodium را روی سرور فعال کنید.</p></div>'; }
+		if ( get_transient( 'matin_ai_secret_refused' ) ) { delete_transient( 'matin_ai_secret_refused' ); echo '<div class="notice notice-error"><p>کلید جدید ذخیره نشد (رمزنگاری ممکن نبود)؛ مقدار قبلی حفظ شد.</p></div>'; }
 	}
 
 	/** Key material comes from WordPress' AUTH salt, so a database dump alone does not reveal the keys. */
@@ -82,7 +95,14 @@ final class Matin_AI_Admin {
 		wp_add_inline_style( 'wp-admin', '.matin-admin{width:calc(100% - 36px);max-width:1600px;margin:24px 18px 0 0;direction:rtl;color:#172033}.matin-admin-hero{padding:28px;border-radius:20px;background:linear-gradient(125deg,#101827,#273c59);color:#fff;margin-bottom:18px}.matin-admin-hero h1{color:#fff;font-size:26px}.matin-admin-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.matin-admin-card{background:linear-gradient(180deg,#fff,#fbfcff);border:1px solid #e0e7f0;border-radius:18px;padding:24px;box-shadow:0 12px 32px #1720330b;transition:transform .18s ease,box-shadow .18s ease}.matin-admin-card:hover{box-shadow:0 16px 36px #17203312;transform:translateY(-1px)}.matin-admin-card h2{font-size:17px;letter-spacing:-.02em;padding-bottom:12px;border-bottom:1px solid #edf0f5}.matin-admin-card h2{margin-top:0}.matin-admin-field{margin:15px 0}.matin-admin-field label{display:block;font-weight:600;margin-bottom:7px}.matin-admin-field input[type=text],.matin-admin-field input[type=password],.matin-admin-field input[type=number],.matin-admin-field select,.matin-admin-field textarea{width:100%;max-width:100%;border-radius:9px;padding:9px 11px}.matin-admin-toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid #edf0f5}.matin-admin-hint{color:#64748b;font-size:12px}.matin-ai-test-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:18px 0}.matin-ai-test-success{color:#147a42;font-weight:700}.matin-ai-test-error{color:#b42318;font-weight:700}.matin-ai-test-pending{color:#64748b}.matin-admin-save{position:sticky;bottom:12px;padding:12px;background:#ffffffed;border:1px solid #e5eaf1;border-radius:12px;margin-top:16px;backdrop-filter:blur(10px)}@media(max-width:780px){.matin-admin-grid{grid-template-columns:1fr}.matin-admin{width:calc(100% - 20px);margin:16px 10px 0}.matin-admin-card{padding:14px}.matin-admin-hero{padding:20px}.matin-admin-hero h1{font-size:22px}}' );
 	}
 	private static function toggle( string $key, string $label, array $o, string $hint = '' ) : void { printf( '<div class="matin-admin-toggle"><div><strong>%s</strong>%s</div><label><input type="checkbox" name="matin_ai_options[%s]" value="1" %s> فعال</label></div>', esc_html( $label ), $hint ? '<div class="matin-admin-hint">' . esc_html( $hint ) . '</div>' : '', esc_attr( $key ), checked( ! empty( $o[ $key ] ), true, false ) ); }
-	private static function field( string $key, string $label, array $o, string $type = 'text', string $hint = '' ) : void { printf( '<div class="matin-admin-field"><label for="matin-%1$s">%2$s</label><input id="matin-%1$s" type="%3$s" name="matin_ai_options[%1$s]" value="%4$s">%5$s</div>', esc_attr( $key ), esc_html( $label ), esc_attr( $type ), esc_attr( (string) ( $o[ $key ] ?? '' ) ), $hint ? '<p class="matin-admin-hint">' . esc_html( $hint ) . '</p>' : '' ); }
+	private static function field( string $key, string $label, array $o, string $type = 'text', string $hint = '' ) : void {
+		// Secrets are never printed back into the page: an empty box keeps the stored value on save.
+		$is_secret = 'password' === $type;
+		$value = $is_secret ? '' : (string) ( $o[ $key ] ?? '' );
+		$is_stored = $is_secret && ! empty( self::get_options()[ $key ] ); // callers pass no options for secrets, so read the stored value here
+		$placeholder = $is_stored ? 'ذخیره شده — برای تغییر، کلید جدید را وارد کنید' : '';
+		printf( '<div class="matin-admin-field"><label for="matin-%1$s">%2$s</label><input id="matin-%1$s" type="%3$s" name="matin_ai_options[%1$s]" value="%4$s" placeholder="%6$s" autocomplete="off">%5$s</div>', esc_attr( $key ), esc_html( $label ), esc_attr( $type ), esc_attr( $value ), $hint ? '<p class="matin-admin-hint">' . esc_html( $hint ) . '</p>' : '', esc_attr( $placeholder ) );
+	}
 	public static function page() : void {
 		if ( ! current_user_can( 'manage_options' ) ) { return; }
 		$o = self::get_options();
@@ -168,7 +188,7 @@ final class Matin_AI_Admin {
 		$id=absint($_GET['id']??0);$do=sanitize_key(wp_unslash($_GET['do']??''));
 		if(!current_user_can('manage_options')||!wp_verify_nonce(sanitize_text_field(wp_unslash($_GET['_wpnonce']??'')),'matin_admin_reservation_'.$id)||'matin_reservation'!==get_post_type($id))wp_die('درخواست نامعتبر است.', '', ['response'=>403]);
 		$status=(string)get_post_meta($id,'_matin_status',true);
-		if($do==='confirm'&&$status==='pending'){update_post_meta($id,'_matin_status','confirmed');update_post_meta($id,'_matin_confirmed_at',current_time('mysql'));Matin_AI_Operations::log('reservation_admin_confirmed',$id,'admin_confirmed');}
+		if($do==='confirm'&&$status==='pending'){update_post_meta($id,'_matin_status','confirmed');update_post_meta($id,'_matin_confirmed_at',current_time('mysql'));Matin_AI_Operations::log('reservation_admin_confirmed',$id,'admin_confirmed');if(class_exists('Matin_AI_REST')){Matin_AI_REST::send_confirmation_notices($id);}}
 		elseif($do==='reject'&&$status==='pending'){update_post_meta($id,'_matin_status','rejected');update_post_meta($id,'_matin_ticket_invalidated',1);Matin_AI_Operations::log('reservation_admin_rejected',$id,'admin_rejected');}
 		elseif($do==='cancel'&&in_array($status,['pending','confirmed'],true)){update_post_meta($id,'_matin_status','cancelled');update_post_meta($id,'_matin_cancelled_at',current_time('mysql'));update_post_meta($id,'_matin_ticket_invalidated',1);Matin_AI_Operations::log('reservation_admin_cancelled',$id,'admin_cancelled');}
 		wp_safe_redirect(admin_url('admin.php?page=matin-ai-reservations&notice=updated'));exit;
@@ -209,11 +229,11 @@ final class Matin_AI_Admin {
 	}
 	private static function audit_report() : void {
 		if ( ! current_user_can( 'manage_options' ) ) { return; }
-		$items = get_option( 'matin_ai_audit_log', [] );
-		if ( ! is_array( $items ) || ! $items ) { echo '<p>هنوز رویداد سیستمی ثبت نشده است.</p>'; return; }
+		$items = Matin_AI_Operations::recent( 50 );
+		if ( ! $items ) { echo '<p>هنوز رویداد سیستمی ثبت نشده است.</p>'; return; }
 		echo '<div style="overflow:auto"><table class="widefat striped"><thead><tr><th>زمان</th><th>رویداد</th><th>شناسه رزرو</th><th>کاربر مدیریتی</th><th>جزئیات</th></tr></thead><tbody>';
-		foreach ( array_reverse( array_slice( $items, -50 ) ) as $item ) { printf( '<tr><td>%s</td><td>%s</td><td>%d</td><td>%d</td><td>%s</td></tr>', esc_html( (string) ( $item['time'] ?? '' ) ), esc_html( (string) ( $item['event'] ?? '' ) ), absint( $item['reservation_id'] ?? 0 ), absint( $item['actor'] ?? 0 ), esc_html( (string) ( $item['detail'] ?? '' ) ) ); }
-		echo '</tbody></table></div><p class="description">حداکثر ۵۰۰ رویداد اخیر نگهداری می‌شود؛ کلیدها، رمزها و توکن‌ها در این گزارش ذخیره نمی‌شوند.</p>';
+		foreach ( $items as $item ) { printf( '<tr><td>%s</td><td>%s</td><td>%d</td><td>%d</td><td>%s</td></tr>', esc_html( (string) ( $item['time'] ?? '' ) ), esc_html( (string) ( $item['event'] ?? '' ) ), absint( $item['reservation_id'] ?? 0 ), absint( $item['actor'] ?? 0 ), esc_html( (string) ( $item['detail'] ?? '' ) ) ); }
+		echo '</tbody></table></div><p class="description">حداکثر ۵۰۰۰ رویداد نگهداری می‌شود و ۵۰ مورد اخیر نمایش داده می‌شود؛ کلیدها، رمزها و توکن‌ها در این گزارش ذخیره نمی‌شوند.</p>';
 	}
 
 	public static function ajax_test_ai_connection() : void {
